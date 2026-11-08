@@ -7,7 +7,15 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["legacy/**/*.ts", "data/**/*.ts", "bench/**/*.ts", "tests/**/*.ts"]
+  "include": [
+    "legacy/**/*.ts",
+    "data/**/*.ts",
+    "bench/**/*.ts",
+    "tests/**/*.ts",
+    "outils/**/*.ts"
+  ]
 }

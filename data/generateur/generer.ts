@@ -15,6 +15,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Alea } from "./alea.js";
+import { REFERENCE } from "./reference.js";
 import { lireReferentiel } from "../../legacy/src/csv.js";
 import type { AdresseReferentiel } from "../../legacy/src/modeles.js";
 
@@ -90,6 +91,9 @@ const t0 = performance.now();
 // ---------- référentiel ----------
 const referentiel: AdresseReferentiel[] = lireReferentiel(cheminReferentiel);
 console.log(`référentiel : ${referentiel.length} adresses (${cheminReferentiel.split(/[\\/]/).pop()})`);
+const shaReferentiel = createHash("sha256").update(readFileSync(cheminReferentiel)).digest("hex");
+const referentielDuModule = shaReferentiel === REFERENCE.metropole.sha256;
+if (!referentielDuModule) console.log(`ATTENTION : ce référentiel n'est pas celui du module (version du ${REFERENCE.date}) ; lancez npm run ban avec l'archive de Moodle`);
 
 // ---------- hubs et livreurs ----------
 const HUBS = [
@@ -281,6 +285,7 @@ verifier(livreurs.filter(l => l.vehicule === "velo_cargo").length === 60, "60 v�
 const manifeste = {
   jeu: nomJeu, graine, jour_livraison: JOUR_LIVRAISON, genere_le: new Date().toISOString(),
   referentiel: cheminReferentiel.split(/[\\/]/).pop(), adresses_referentiel: referentiel.length,
+  referentiel_sha256: shaReferentiel, referentiel_du_module: referentielDuModule,
   colis: { lignes: lignesColis.length, uniques: nUniques, doublons: nDoublons, pharmacie, express: colisUniques.filter(c => c.priorite === "express").length, plus_de_25_kg: lourds, saisies: parSorte },
   livreurs: livreurs.length, clients: clients.length, scans: sansScans ? 0 : scans.length, absents,
   pieges: pieges ? compteurPieges : null, sha1: sommes,

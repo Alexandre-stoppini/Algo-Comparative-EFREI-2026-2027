@@ -13,7 +13,8 @@
     "bench:naif": "tsx bench/bench-naif.ts",
     "couples": "tsx bench/couples.ts",
     "courbe": "tsx bench/courbe.ts",
-    "test": "node --import tsx --test tests/*.test.ts"
+    "test": "node --import tsx --test --test-reporter=spec tests/*.test.ts",
+    "verifier": "tsx outils/verifier.ts"
   },
   "engines": {
     "node": ">=20"

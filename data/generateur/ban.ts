@@ -1,18 +1,24 @@
 // Prépare le référentiel d'adresses à partir de la Base Adresse Nationale (BAN), département de la Gironde.
 // Source : https://adresse.data.gouv.fr/data/ban/adresses/latest/csv/adresses-33.csv.gz (Licence Ouverte 2.0)
 //
-//   npm run ban                      télécharge le fichier s'il manque, puis produit les deux référentiels
-//   npm run ban -- --sans-telechargement
+//   npm run ban                      vérifie l'archive du module, puis produit les deux référentiels
+//   npm run ban -- --telecharger     télécharge la version du jour (déconseillé : voir plus bas)
+//
+// L'archive du module est sur Moodle (adresses-33.csv.gz, version figée du 29 octobre 2026). Copiez-la dans
+// data/referentiel/ avant de lancer la commande. La BAN change chaque jour : une archive téléchargée un autre
+// jour donne d'autres adresses, d'autres jeux et d'autres sommes de contrôle que celles de la promotion.
 //
 // Sorties dans data/referentiel :
-//   adresses-gironde.csv     tout le département, colonnes réduites (732 000 adresses environ)
-//   adresses-metropole.csv   les 28 communes de Bordeaux Métropole (229 000 adresses environ)
-import { createReadStream, createWriteStream, existsSync, mkdirSync, writeFileSync } from "node:fs";
+//   adresses-gironde.csv     tout le département, colonnes réduites (730 137 adresses)
+//   adresses-metropole.csv   les 28 communes de Bordeaux Métropole (229 329 adresses)
+import { createHash } from "node:crypto";
+import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createGunzip } from "node:zlib";
 import { createInterface } from "node:readline";
 import { resolve } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
+import { REFERENCE } from "./reference.js";
 
 const URL_BAN = "https://adresse.data.gouv.fr/data/ban/adresses/latest/csv/adresses-33.csv.gz";
 const DOSSIER = resolve("data", "referentiel");
@@ -29,6 +35,10 @@ export const COMMUNES_METROPOLE: Record<string, string> = {
 };
 
 const COLONNES_SORTIE = ["id", "numero", "rep", "nom_voie", "code_postal", "code_insee", "nom_commune", "lon", "lat"];
+
+function empreinte(chemin: string): string {
+  return createHash("sha256").update(readFileSync(chemin)).digest("hex");
+}
 
 async function telecharger(): Promise<void> {
   console.log(`téléchargement de ${URL_BAN} ...`);
@@ -57,14 +67,36 @@ async function preparer(): Promise<void> {
   await Promise.all([new Promise(r => gironde.end(r)), new Promise(r => metropole.end(r))]);
   writeFileSync(resolve(DOSSIER, "LICENCE_BAN.txt"),
     "Base Adresse Nationale, departement de la Gironde.\nSource : " + URL_BAN + "\nLicence Ouverte / Open Licence 2.0 (Etalab).\n" +
-    `Preparation le ${new Date().toISOString().slice(0, 10)} : ${total} adresses en Gironde, ${dansMetropole} dans Bordeaux Metropole.\n`, "utf-8");
+    `Version du module : ${REFERENCE.date}. Preparation : ${total} adresses en Gironde, ${dansMetropole} dans Bordeaux Metropole.\n`, "utf-8");
   console.log(`adresses-gironde.csv : ${total} adresses`);
   console.log(`adresses-metropole.csv : ${dansMetropole} adresses (28 communes)`);
+  const ok = empreinte(resolve(DOSSIER, "adresses-metropole.csv")) === REFERENCE.metropole.sha256;
+  console.log(ok ? `référentiel du module : OK (version du ${REFERENCE.date})`
+    : `ATTENTION : ce référentiel n'est pas celui du module ; vos jeux ne seront pas ceux de la promotion`);
 }
 
 mkdirSync(DOSSIER, { recursive: true });
+const veutTelecharger = process.argv.includes("--telecharger");
 if (!existsSync(SOURCE)) {
-  if (process.argv.includes("--sans-telechargement")) { console.error(`source absente : ${SOURCE}`); process.exit(1); }
+  if (!veutTelecharger) {
+    console.error(`archive absente : ${SOURCE}`);
+    console.error(`Téléchargez adresses-33.csv.gz sur Moodle (Algorithmie comparative > Journée 2) et copiez-la dans data/referentiel/,`);
+    console.error(`puis relancez npm run ban.`);
+    process.exit(1);
+  }
   await telecharger();
+}
+const sha = empreinte(SOURCE);
+if (sha !== REFERENCE.archive.sha256) {
+  console.error(`ATTENTION : data/referentiel/adresses-33.csv.gz n'est pas l'archive du module (version du ${REFERENCE.date}).`);
+  console.error(`  empreinte trouvée : ${sha}`);
+  console.error(`  empreinte attendue : ${REFERENCE.archive.sha256}`);
+  if (!veutTelecharger) {
+    console.error(`Remplacez-la par celle de Moodle, puis relancez npm run ban.`);
+    process.exit(1);
+  }
+  console.error(`On continue parce que vous avez demandé --telecharger : vos sommes de contrôle ne seront pas celles de la promotion.`);
+} else {
+  console.log(`archive du module : OK (${REFERENCE.archive.fichier}, version du ${REFERENCE.date})`);
 }
 await preparer();
